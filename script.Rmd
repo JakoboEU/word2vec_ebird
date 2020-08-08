@@ -14,8 +14,9 @@ library(ggplot2)
 data <- read_csv("ebird.csv")
 summary(data)
 ```
+
 ```{r}
-speciesText <- data$`species-text`[data$`species-text` != "null"]
+speciesText <- data$species_text[data$species_text != "null"]
 speciesText <-  tolower(gsub('[[:punct:] ]+',' ',speciesText))
 head(speciesText)
 ```
@@ -92,6 +93,7 @@ model <- word2vec(x = speciesText, type = "cbow", dim = 15, iter = 20)
 ```{r}
 predict(model, c("woodpecker", "duck", "hummingbird", "eagle", "hawk"), type = "nearest", top_n = 5)
 ```
+
 ```{r}
 tellMeMore <- function(blah, isto_that, what_thing_isto) {
   wv <- predict(model, c(blah, isto_that, what_thing_isto), type = "embedding")
@@ -109,6 +111,17 @@ tellMeMore("parrot", "noise", "duck")
 tellMeMore("iridescent", "hummingbird", "plain")
 ```
 
+```{r}
+tellMeMore("water", "duck", "forest")
+```
+
+```{r}
+tellMeMore("water", "duck", "agricultural")
+```
+
+```{r}
+tellMeMore("woodpecker", "tree", "duck")
+```
 
 GRAPH
 ```{r}
@@ -182,7 +195,9 @@ families <- c("rail",
 "falcon",
 "parrot",
 "finch",
-"wren")
+"wren",
+"antbird",
+"barbet")
 ```
 
 
@@ -199,6 +214,7 @@ results <- results[ !na_results, ]
 
 ```{r}
 library(Rtsne)
+library(ggrepel)
 tsne <- Rtsne(results, perplexity = 2, pca = FALSE)
 
 tsne$Y %>%
@@ -206,9 +222,41 @@ tsne$Y %>%
   mutate(word = row.names(results)) %>%
   ggplot(aes(x = V1, y = V2, label = word)) + 
   geom_point() +
-  geom_text(size = 3, nudge_y = -1, nudge_x = -3)
+  geom_label_repel(label.size = 0)
+```
+
+```{r}
+fit <- kmeans(results, centers=10)
+clusters <- fit$cluster
+clusters
 ```
 
 
+```{r}
+table <- tsne$Y %>%
+  as.data.frame() %>%
+  mutate(word = row.names(results))
+table$cluster <- as.factor(clusters[table$word])
+```
 
 
+```{r}
+ ggplot(data = table, aes(x = V1, y = V2, label = word, color=cluster)) + 
+  geom_point() +
+  geom_label_repel(label.size = 0) +
+  scale_color_discrete(guide=FALSE)
+```
+
+```{r}
+species_text_for <- function(tofind) {
+  required_species <- subset(data, grepl(paste(tofind, collapse = "|"), species_text))
+  unique(required_species$species_text)
+}
+```
+
+```{r}
+species_text_for(c("mockingbird", "dipper"))
+```
+```{r}
+species_text_for(c("swan", "starling"))
+```
