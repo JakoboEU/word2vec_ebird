@@ -1,0 +1,214 @@
+---
+title: "WordVec using ebird"
+output: html_notebook
+---
+
+
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+
+```{r}
+data <- read_csv("ebird.csv")
+summary(data)
+```
+```{r}
+speciesText <- data$`species-text`[data$`species-text` != "null"]
+speciesText <-  tolower(gsub('[[:punct:] ]+',' ',speciesText))
+head(speciesText)
+```
+
+From https://m-clark.github.io/text-analysis-with-R/word-embeddings.html
+
+```{r}
+library(text2vec)
+tokens = space_tokenizer(speciesText)
+```
+
+```{r}
+it = itoken(tokens, progressbar = FALSE)
+```
+
+```{r}
+vocab = create_vocabulary(it)
+vocab = prune_vocabulary(vocab, term_count_min = 5L)
+```
+
+```{r}
+vectorizer = vocab_vectorizer(vocab)
+```
+
+```{r}
+tcm = create_tcm(it, vectorizer, skip_grams_window = 5L)
+```
+
+
+```{r}
+glove = GlobalVectors$new(rank = 50, x_max = 10)
+```
+
+This step trains the model
+```{r}
+wv_main = glove$fit_transform(tcm, n_iter = 100, convergence_tol = 0.001)
+```
+
+```{r}
+wv_context = glove$components
+word_vectors = wv_main + t(wv_context)
+```
+
+```{r}
+tellMe <- function(blah, isto_that, what_thing_isto) {
+  result = word_vectors[blah, , drop = FALSE] -
+    word_vectors[isto_that, , drop = FALSE] +
+    word_vectors[what_thing_isto, , drop = FALSE]
+  result_cos_sim = sim2(x = word_vectors, y = result, method = "cosine", norm = "l2")
+  head(sort(result_cos_sim[,1], decreasing = TRUE), 5)
+}
+```
+
+
+```{r}
+tellMe("water", "duck", "forest")
+```
+```{r}
+tellMe("water", "duck", "agricultural")
+```
+
+```{r}
+tellMe("woodpecker", "tree", "duck")
+```
+
+
+From www.bnosac.be/index.php/blog/100-word2vec-in-R
+```{r}
+library(word2vec)
+set.seed(123456789)
+model <- word2vec(x = speciesText, type = "cbow", dim = 15, iter = 20)
+```
+
+```{r}
+predict(model, c("woodpecker", "duck", "hummingbird", "eagle", "hawk"), type = "nearest", top_n = 5)
+```
+```{r}
+tellMeMore <- function(blah, isto_that, what_thing_isto) {
+  wv <- predict(model, c(blah, isto_that, what_thing_isto), type = "embedding")
+  wv <- wv[blah, ] - wv[isto_that, ] + wv[what_thing_isto,]
+  predict(model, newdata = wv, type = "nearest", top_n = 5)
+}
+```
+
+
+```{r}
+tellMeMore("parrot", "noise", "duck")
+```
+
+```{r}
+tellMeMore("iridescent", "hummingbird", "plain")
+```
+
+
+GRAPH
+```{r}
+families <- c("rail",
+"flycatcher",
+"cormorant",
+"bunting",
+"frigatebird",
+"courser",
+"pratincole",
+"pigeon",
+"sparrow",
+"auk",
+"woodpecker",
+"phalarope",
+"swift",
+"thrush",
+"warbler",
+"heron",
+"nightjar",
+"oystercatcher",
+"skua",
+"stork",
+"grouse",
+"waxwing",
+"gannet",
+"boobie",
+"hawk",
+"eagle",
+"treecreeper",
+"grebe",
+"dipper",
+"crow",
+"chat",
+"starling",
+"oriole",
+"crane",
+"diver",
+"sandgrouse",
+"owl",
+"tern",
+"kingfisher",
+"shrike",
+"cuckoo",
+"thick-knee",
+"sandpiper",
+"wagtail",
+"pheasant",
+"partridge",
+"vireo",
+"tanager",
+"pelican",
+"gull",
+"bustard",
+"swallow",
+"martin",
+"duck",
+"geese",
+"swan",
+"avocet",
+"plover",
+"tit",
+"tropicbird",
+"lark",
+"nuthatch",
+"mockingbird",
+"flamingo",
+"shearwater",
+"petrel",
+"accentor",
+"falcon",
+"parrot",
+"finch",
+"wren")
+```
+
+
+```{r}
+results <- predict(model, families, type = "embedding")
+summary(results)
+```
+
+```{r}
+na_results <- apply(results, 1, function(x) all(is.na(x)))
+results <- results[ !na_results, ]
+```
+
+
+```{r}
+library(Rtsne)
+tsne <- Rtsne(results, perplexity = 2, pca = FALSE)
+
+tsne$Y %>%
+  as.data.frame() %>%
+  mutate(word = row.names(results)) %>%
+  ggplot(aes(x = V1, y = V2, label = word)) + 
+  geom_point() +
+  geom_text(size = 3, nudge_y = -1, nudge_x = -3)
+```
+
+
+
+
